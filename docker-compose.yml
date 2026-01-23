@@ -1,0 +1,38 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: payment_postgres
+    restart: unless-stopped
+    ports:
+      - "5433:5432"  # ← UBAH INI (host:container)
+    environment:
+      POSTGRES_DB: payment_db
+      POSTGRES_USER: payment_user
+      POSTGRES_PASSWORD: payment_secret
+      PGDATA: /var/lib/postgresql/data
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - payment_network
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: payment_pgadmin
+    restart: unless-stopped
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@payment.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    depends_on:
+      - postgres
+    networks:
+      - payment_network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  payment_network:
+    driver: bridge
