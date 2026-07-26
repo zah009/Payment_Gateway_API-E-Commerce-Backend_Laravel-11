@@ -1,14 +1,22 @@
-#  Payment Gateway API — E-Commerce Backend
+# 🛒 Payment Gateway API — E-Commerce Backend
 
-**Backend RESTful API untuk sistem e-commerce dengan integrasi payment gateway Midtrans (Snap API), dibangun dengan Laravel 11.**
+![Laravel](https://img.shields.io/badge/Laravel-11-FF2D20?style=flat-square&logo=laravel&logoColor=white)
+![PHP](https://img.shields.io/badge/PHP-8.2%2B-777BB4?style=flat-square&logo=php&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-4169E1?style=flat-square&logo=postgresql&logoColor=white)
+![Midtrans](https://img.shields.io/badge/Payment-Midtrans%20Snap-00AED6?style=flat-square)
+![Sanctum](https://img.shields.io/badge/Auth-Sanctum-FF2D20?style=flat-square&logo=laravel&logoColor=white)
+![Status](https://img.shields.io/badge/Status-Portfolio%2FLearning-yellow?style=flat-square)
+![License](https://img.shields.io/badge/License-Learning%20Purpose-lightgrey?style=flat-square)
 
-Project ini fokus pada tiga hal: (1) alur transaksi e-commerce yang benar dari sisi data (harga dihitung server-side, bukan dari input client), (2) keamanan webhook payment yang sering diremehkan developer pemula, dan (3) idempotency handling supaya sistem tahan terhadap notifikasi duplikat/replay dari payment gateway.
+Backend RESTful API untuk sistem e-commerce dengan integrasi payment gateway Midtrans (Snap API). Dibangun pakai Laravel 11.
 
->  **Status project**: Portofolio / Internship Learning Project — dibangun untuk mendalami integrasi payment gateway dan praktik keamanan backend, bukan untuk produksi dengan transaksi nyata.
+Fokus utama project ini bukan cuma "connect ke Midtrans terus selesai" — ada tiga hal yang sengaja jadi perhatian: harga transaksi dihitung ulang di server (bukan percaya input client begitu aja), webhook pembayaran diverifikasi dengan benar (ini bagian yang paling sering di-skip di tutorial), dan sistem tetap aman kalau Midtrans kirim notifikasi yang sama dua kali.
+
+> 📌 **Status project**: Portofolio / Internship Learning Project — dibangun untuk mendalami integrasi payment gateway dan praktik keamanan backend. Bukan untuk produksi dengan transaksi nyata.
 
 ---
 
-##  Daftar Isi
+## 📋 Daftar Isi
 
 - [Tech Stack](#-tech-stack)
 - [Fitur Utama](#-fitur-utama)
@@ -25,7 +33,7 @@ Project ini fokus pada tiga hal: (1) alur transaksi e-commerce yang benar dari s
 
 ---
 
-##  Tech Stack
+## 🛠 Tech Stack
 
 | Kategori | Teknologi |
 |---|---|
@@ -38,7 +46,7 @@ Project ini fokus pada tiga hal: (1) alur transaksi e-commerce yang benar dari s
 
 ---
 
-##  Fitur Utama
+## ✨ Fitur Utama
 
 ### Autentikasi & User Management
 - Register & login dengan token-based authentication (Sanctum)
@@ -64,9 +72,9 @@ Project ini fokus pada tiga hal: (1) alur transaksi e-commerce yang benar dari s
 
 ---
 
-##  Security Highlights
+## 🔒 Security Highlights
 
-Bagian ini sengaja dipisah karena ini yang membedakan project payment gateway "asal jalan" dengan yang benar-benar mempertimbangkan skenario penyalahgunaan.
+Ini bagian yang paling banyak berubah selama proses code review. Beberapa dari isu di bawah ini awalnya lolos begitu aja waktu development — ditemukan pas iseng-iseng audit ulang kode sendiri.
 
 | # | Isu | Mitigasi |
 |---|---|---|
@@ -81,7 +89,7 @@ Bagian ini sengaja dipisah karena ini yang membedakan project payment gateway "a
 
 ---
 
-##  Arsitektur & Alur Sistem
+## 🏗 Arsitektur & Alur Sistem
 
 ### Alur Pembayaran (Payment Flow)
 
@@ -263,12 +271,12 @@ Project ini dikembangkan dengan pendekatan **iteratif berbasis Agile** dalam spr
 
 ### Sprint 4 — Security Hardening (Code Review Pass)
 Sprint ini murni **review & perbaikan**, bukan fitur baru — tahap yang sering dilewatkan project pemula tapi krusial untuk sistem pembayaran:
--  Ditemukan & diperbaiki: webhook tanpa verifikasi signature (celah pemalsuan notifikasi pembayaran)
--  Ditemukan & diperbaiki: exception handling yang mereferensikan class tidak valid (potensi crash saat error dari Midtrans)
--  Ditambahkan: idempotency guard untuk mencegah notifikasi duplikat/replay diproses ulang
--  Ditambahkan: rate limiting pada endpoint autentikasi
--  Ditambahkan: PII masking pada logging
--  Ditambahkan: konfigurasi CORS yang eksplisit
+- ✅ Ditemukan & diperbaiki: webhook tanpa verifikasi signature (celah pemalsuan notifikasi pembayaran)
+- ✅ Ditemukan & diperbaiki: exception handling yang mereferensikan class tidak valid (potensi crash saat error dari Midtrans)
+- ✅ Ditambahkan: idempotency guard untuk mencegah notifikasi duplikat/replay diproses ulang
+- ✅ Ditambahkan: rate limiting pada endpoint autentikasi
+- ✅ Ditambahkan: PII masking pada logging
+- ✅ Ditambahkan: konfigurasi CORS yang eksplisit
 
 ### Backlog / Belum Dikerjakan
 - Automated testing (unit & feature test)
@@ -336,7 +344,7 @@ MIDTRANS_IS_PRODUCTION=false
 FRONTEND_URL=http://localhost:3000
 ```
 
->  **Penting**: `.env` tidak pernah di-commit ke repository (sudah ada di `.gitignore`). Gunakan `.env.example` sebagai template, dan isi key Midtrans dengan kredensial sandbox milik Anda sendiri melalui [dashboard Midtrans](https://dashboard.sandbox.midtrans.com/).
+> ⚠️ **Penting**: `.env` tidak pernah di-commit ke repository (sudah ada di `.gitignore`). Gunakan `.env.example` sebagai template, dan isi key Midtrans dengan kredensial sandbox milik Anda sendiri melalui [dashboard Midtrans](https://dashboard.sandbox.midtrans.com/).
 
 ### Setup Webhook untuk Testing Lokal
 
@@ -360,8 +368,8 @@ Base URL: `/api`
 |---|---|---|---|
 | POST | `/register` | Publik | Registrasi user baru |
 | POST | `/login` | Publik | Login, mengembalikan Bearer token |
-| GET | `/user` |  Bearer | Data user yang sedang login |
-| POST | `/logout` |  Bearer | Revoke token aktif |
+| GET | `/user` | 🔒 Bearer | Data user yang sedang login |
+| POST | `/logout` | 🔒 Bearer | Revoke token aktif |
 
 **Contoh Request — Login**
 ```http
@@ -399,33 +407,33 @@ Content-Type: application/json
 |---|---|---|---|
 | GET | `/products` | Publik | List produk (support `search`, `active`, `in_stock`, `per_page`) |
 | GET | `/products/{id}` | Publik | Detail satu produk |
-| POST | `/products` |  Admin | Buat produk baru |
-| PUT | `/products/{id}` |  Admin | Update produk |
-| DELETE | `/products/{id}` |  Admin | Hapus produk |
+| POST | `/products` | 🔒 Admin | Buat produk baru |
+| PUT | `/products/{id}` | 🔒 Admin | Update produk |
+| DELETE | `/products/{id}` | 🔒 Admin | Hapus produk |
 
 ### Order
 
 | Method | Endpoint | Auth | Deskripsi |
 |---|---|---|---|
-| GET | `/orders` |  Bearer | List order milik user login |
-| POST | `/orders` |  Bearer | Buat order baru (checkout) |
-| GET | `/orders/{id}` |  Bearer | Detail order |
-| POST | `/orders/{id}/cancel` |  Bearer | Batalkan order (stok dikembalikan) |
+| GET | `/orders` | 🔒 Bearer | List order milik user login |
+| POST | `/orders` | 🔒 Bearer | Buat order baru (checkout) |
+| GET | `/orders/{id}` | 🔒 Bearer | Detail order |
+| POST | `/orders/{id}/cancel` | 🔒 Bearer | Batalkan order (stok dikembalikan) |
 
 ### Payment
 
 | Method | Endpoint | Auth | Deskripsi |
 |---|---|---|---|
-| POST | `/payment/{orderId}` |  Bearer | Generate Snap Token untuk pembayaran |
-| GET | `/payment/{orderId}/status` |  Bearer | Cek status pembayaran (manual, fallback) |
+| POST | `/payment/{orderId}` | 🔒 Bearer | Generate Snap Token untuk pembayaran |
+| GET | `/payment/{orderId}/status` | 🔒 Bearer | Cek status pembayaran (manual, fallback) |
 | POST | `/payment/notification` | Publik (Midtrans only) | Webhook — menerima notifikasi status dari Midtrans |
 
-> Semua endpoint ` Bearer` membutuhkan header:
+> Semua endpoint `🔒 Bearer` membutuhkan header:
 > `Authorization: Bearer {access_token}`
 
 ---
 
-##  Struktur Folder
+## 📁 Struktur Folder
 
 ```
 app/
@@ -465,7 +473,7 @@ routes/
 
 ---
 
-##  Testing
+## 🧪 Testing
 
 ### Testing Manual via Postman/curl
 Alur pengujian yang disarankan:
@@ -494,12 +502,14 @@ Alur pengujian yang disarankan:
 
 ---
 
-##  Lisensi
+## 📄 Lisensi
 
 Project ini dibuat untuk keperluan pembelajaran dan portofolio. Bebas digunakan sebagai referensi belajar.
 
 ---
 
-## Author
-Said Hamzah
-Dikembangkan dengan fokus pada penguatan fundamental keamanan backend dalam sistem pembayaran.
+## 👤 Author
+
+**Said Hamzah**
+
+Dikembangkan sebagai bagian dari internship program, dengan fokus penguatan fundamental keamanan backend dalam sistem pembayaran.
