@@ -125,12 +125,21 @@ class PaymentController extends Controller
                 ],
             ];
 
-            // Log params untuk debug
+            // Log params untuk debug (data customer di-mask, jangan log PII mentah)
             Log::info('Creating Midtrans Payment', [
                 'order_number' => $order->order_number,
                 'gross_amount' => $transactionDetails['gross_amount'],
                 'items_count' => count($itemDetails),
-                'params' => $params,
+                'params' => [
+                    'transaction_details' => $transactionDetails,
+                    'item_details' => $itemDetails,
+                    'customer_details' => [
+                        'first_name' => substr($customerDetails['first_name'], 0, 1) . '***',
+                        'email' => preg_replace('/(?<=.{2}).(?=[^@]*?@)/', '*', $customerDetails['email']),
+                        'phone' => substr($customerDetails['phone'], 0, 4) . '****' . substr($customerDetails['phone'], -2),
+                    ],
+                    'enabled_payments' => $params['enabled_payments'],
+                ],
             ]);
 
             // Get Snap Token from Midtrans
@@ -184,23 +193,10 @@ class PaymentController extends Controller
                 ],
             ], 201);
 
-        } catch (\Midtrans\Exceptions\MidtransException $e) {
-            Log::error('Midtrans Exception', [
-                'message' => $e->getMessage(),
-                'code' => $e->getCode(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Midtrans error: ' . $e->getMessage(),
-                'error' => $e->getMessage(),
-                'error_code' => $e->getCode(),
-            ], 500);
-
         } catch (\Exception $e) {
             Log::error('Payment Creation Error', [
                 'message' => $e->getMessage(),
+                'code' => $e->getCode(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString(),
@@ -208,8 +204,9 @@ class PaymentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create payment',
+                'message' => 'Failed to create payment: ' . $e->getMessage(),
                 'error' => $e->getMessage(),
+                'error_code' => $e->getCode(),
             ], 500);
         }
     }
@@ -228,6 +225,47 @@ class PaymentController extends Controller
 
             // Get notification from Midtrans
             $notif = new \Midtrans\Notification();
+
+            // ============================================
+            // VERIFY SIGNATURE - WAJIB sebelum proses apapun
+            // ============================================
+            $expectedSignature = hash('sha512',
+                $notif->order_id .
+                $notif->status_code .
+                $notif->gross_amount .
+                config('midtrans.server_key')
+            );
+
+            if (!hash_equals($expectedSignature, (string) $notif->signature_key)) {
+                DB::rollBack();
+
+                Log::warning('Midtrans Notification: Invalid Signature', [
+                    'order_id' => $notif->order_id ?? null,
+                    'status_code' => $notif->status_code ?? null,
+                    'gross_amount' => $notif->gross_amount ?? null,
+                    'ip' => $request->ip(),
+                ]);
+
+                // Log sebagai bukti percobaan pemalsuan notifikasi
+                try {
+                    PaymentLog::create([
+                        'order_id' => null,
+                        'event_type' => 'error',
+                        'payload' => json_encode([
+                            'order_id' => $notif->order_id ?? null,
+                            'ip' => $request->ip(),
+                            'timestamp' => now()->toIso8601String(),
+                        ]),
+                    ]);
+                } catch (\Exception $logError) {
+                    Log::error('Failed to log invalid signature attempt', ['error' => $logError->getMessage()]);
+                }
+
+                return response()->json([
+                    'message' => 'Invalid signature'
+                ], 403);
+            }
+            // ============================================
 
             $orderNumber = $notif->order_id;
             $transactionStatus = $notif->transaction_status;
@@ -414,7 +452,7 @@ class PaymentController extends Controller
                         ]),
                     ]);
 
-                } catch (\Midtrans\Exceptions\MidtransException $e) {
+                } catch (\Exception $e) {
                     Log::warning('Midtrans Status Check Failed', [
                         'transaction_id' => $payment->transaction_id,
                         'error' => $e->getMessage(),

@@ -9,8 +9,11 @@ use Illuminate\Support\Facades\Route;
 // Jangan ada Route::middleware('web') di sini!
 
 // Public routes
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/register', [AuthController::class, 'register'])
+    ->middleware('throttle:5,1'); // max 5 percobaan per menit per IP
+
+Route::post('/login', [AuthController::class, 'login'])
+    ->middleware('throttle:5,1'); // max 5 percobaan per menit per IP
 
 Route::get('/products', [ProductController::class, 'index']);
 Route::get('/products/{id}', [ProductController::class, 'show']);
