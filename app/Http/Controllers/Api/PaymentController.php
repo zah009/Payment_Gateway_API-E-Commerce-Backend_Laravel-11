@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Http\Controllers\Api;
-
+use App\Services\MidtransSignatureVerifier;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Payment;
@@ -211,38 +211,33 @@ class PaymentController extends Controller
         }
     }
 
-    /**
+ /**
      * Handle Midtrans notification webhook
      */
-    public function notification(Request $request)
+    public function notification(Request $request, MidtransSignatureVerifier $verifier)
     {
         DB::beginTransaction();
 
         try {
-            // Setup Midtrans Configuration
-            \Midtrans\Config::$serverKey = config('midtrans.server_key');
-            \Midtrans\Config::$isProduction = config('midtrans.is_production');
-
-            // Get notification from Midtrans
-            $notif = new \Midtrans\Notification();
-
             // ============================================
-            // VERIFY SIGNATURE - WAJIB sebelum proses apapun
+            // VERIFY SIGNATURE - dari $request langsung, SEBELUM
+            // manggil apapun yang nyentuh network (Notification/Transaction::status
+            // bikin outbound call ke Midtrans, jangan sampai kepanggil buat payload sampah)
             // ============================================
-            $expectedSignature = hash('sha512',
-                $notif->order_id .
-                $notif->status_code .
-                $notif->gross_amount .
-                config('midtrans.server_key')
-            );
+            $signatureData = [
+                'order_id' => $request->input('order_id'),
+                'status_code' => $request->input('status_code'),
+                'gross_amount' => $request->input('gross_amount'),
+                'signature_key' => $request->input('signature_key'),
+            ];
 
-            if (!hash_equals($expectedSignature, (string) $notif->signature_key)) {
+            if (!$verifier->isValid($signatureData, config('midtrans.server_key'))) {
                 DB::rollBack();
 
                 Log::warning('Midtrans Notification: Invalid Signature', [
-                    'order_id' => $notif->order_id ?? null,
-                    'status_code' => $notif->status_code ?? null,
-                    'gross_amount' => $notif->gross_amount ?? null,
+                    'order_id' => $signatureData['order_id'],
+                    'status_code' => $signatureData['status_code'],
+                    'gross_amount' => $signatureData['gross_amount'],
                     'ip' => $request->ip(),
                 ]);
 
@@ -252,7 +247,8 @@ class PaymentController extends Controller
                         'order_id' => null,
                         'event_type' => 'error',
                         'payload' => json_encode([
-                            'order_id' => $notif->order_id ?? null,
+                            'reason' => 'invalid_signature',
+                            'order_id' => $signatureData['order_id'],
                             'ip' => $request->ip(),
                             'timestamp' => now()->toIso8601String(),
                         ]),
@@ -266,6 +262,14 @@ class PaymentController extends Controller
                 ], 403);
             }
             // ============================================
+
+            // Setup Midtrans Configuration
+            \Midtrans\Config::$serverKey = config('midtrans.server_key');
+            \Midtrans\Config::$isProduction = config('midtrans.is_production');
+
+            // Signature sudah tervalidasi. Ambil status resmi dari Midtrans
+            // (bukan sekadar percaya body request) sebagai konfirmasi kedua.
+            $notif = new \Midtrans\Notification();
 
             $orderNumber = $notif->order_id;
             $transactionStatus = $notif->transaction_status;
@@ -321,6 +325,30 @@ class PaymentController extends Controller
                     'message' => 'Payment not found'
                 ], 404);
             }
+
+            // ============================================
+            // IDEMPOTENCY GUARD - cegah notif duplikat/replay
+            // memproses ulang payment yang statusnya sudah final
+            // ============================================
+            $finalStatuses = ['settlement', 'failure', 'expire', 'cancel'];
+
+            if (in_array($payment->payment_status, $finalStatuses)) {
+                Log::info('Notification skipped: payment already in final status', [
+                    'order_number' => $orderNumber,
+                    'current_status' => $payment->payment_status,
+                    'incoming_status' => $transactionStatus,
+                    'transaction_id' => $transactionId,
+                ]);
+
+                DB::commit();
+
+                // Balikin 200 supaya Midtrans berhenti retry - notif ini sudah "diterima",
+                // cuma sengaja tidak diproses ulang.
+                return response()->json([
+                    'message' => 'Notification already processed, status unchanged'
+                ], 200);
+            }
+            // ============================================
 
             // Update payment data
             $payment->transaction_id = $transactionId;
