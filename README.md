@@ -25,7 +25,9 @@ Fokus utama project ini bukan cuma "connect ke Midtrans terus selesai" — ada t
 - [Entity Relationship Diagram (ERD)](#-entity-relationship-diagram-erd)
 - [Proses Pengembangan (Agile/SDLC)](#-proses-pengembangan-agilesdlc)
 - [Instalasi & Setup Lokal](#-instalasi--setup-lokal)
+- [Menjalankan via Docker & Daftar Port](#-menjalankan-via-docker--daftar-port)
 - [Dokumentasi API](#-dokumentasi-api)
+- [Dokumentasi API Interaktif (Swagger)](#-dokumentasi-api-interaktif-swagger)
 - [Struktur Folder](#-struktur-folder)
 - [Testing](#-testing)
 - [Roadmap](#-roadmap--pengembangan-selanjutnya)
@@ -41,6 +43,7 @@ Fokus utama project ini bukan cuma "connect ke Midtrans terus selesai" — ada t
 | Database | PostgreSQL |
 | Autentikasi | Laravel Sanctum (Bearer Token) |
 | Payment Gateway | Midtrans Snap API (sandbox) |
+| API Documentation | L5-Swagger (OpenAPI 3.0) |
 | Format Response | JSON (REST API) |
 | Cloud/Deployment (target) | AWS EC2 (Nginx + PHP-FPM) |
 
@@ -358,6 +361,36 @@ Lalu daftarkan URL ngrok tersebut (`https://xxxx.ngrok.io/api/payment/notificati
 
 ---
 
+## 🐳 Menjalankan via Docker & Daftar Port
+
+Selain instalasi manual di atas, project ini juga bisa dijalankan via Docker Compose. Berikut daftar service beserta port yang di-publish ke host:
+
+| Service | Container Name | Port Host → Container | Akses |
+|---|---|---|---|
+| Backend (Laravel API) | `payment_backend` | `8000` → `8000` | `http://localhost:8000/api` |
+| Frontend (Vite) | `payment_frontend` | `5173` → `5173` | `http://localhost:5173` |
+| PostgreSQL | `payment_postgres` | `5433` → `5432` | `127.0.0.1:5433` (dari host) |
+| pgAdmin 4 | `payment_pgadmin` | `5050` → `80` | `http://localhost:5050` |
+
+> **Kenapa Postgres di-mapping ke `5433`, bukan `5432` default?** Supaya gak bentrok kalau di komputer developer sudah ada instance PostgreSQL lain yang jalan di port `5432` bawaan.
+
+**Menjalankan semua service:**
+```bash
+docker compose up -d
+```
+
+**Cek status container:**
+```bash
+docker ps
+```
+
+**Menjalankan test suite di dalam container** (perlu override `DB_CONNECTION`/`DB_DATABASE` karena environment variable Postgres sudah di-bake di level container lewat `docker-compose.yml`, jadi harus di-override eksplisit biar test pakai SQLite in-memory dan gak menyentuh database asli):
+```bash
+docker exec -e DB_CONNECTION=sqlite -e DB_DATABASE=":memory:" -it payment_backend php artisan test
+```
+
+---
+
 ## 📖 Dokumentasi API
 
 Base URL: `/api`
@@ -433,6 +466,50 @@ Content-Type: application/json
 
 ---
 
+## 📚 Dokumentasi API Interaktif (Swagger)
+
+Selain dokumentasi manual di atas, seluruh endpoint juga terdokumentasi otomatis dalam format **OpenAPI 3.0** via [L5-Swagger](https://github.com/DarkaOnLine/L5-Swagger) (`darkaonline/l5-swagger`), yang membungkus [zircote/swagger-php](https://github.com/zircote/swagger-php) untuk parsing PHP Attributes (`#[OA\Get]`, `#[OA\Post]`, dst) menjadi spesifikasi OpenAPI, dan menampilkannya lewat [swagger-api/swagger-ui](https://github.com/swagger-api/swagger-ui).
+
+**Akses Swagger UI:**
+```
+http://localhost:8000/api/documentation
+```
+
+**Raw OpenAPI JSON spec:**
+```
+http://localhost:8000/docs?api-docs.json
+```
+
+### Cara pakai (termasuk endpoint yang butuh login)
+
+1. Buka `/api/documentation`
+2. Login dulu lewat endpoint `POST /login` (bisa langsung dari Swagger UI via **Try it out**), copy `access_token` dari response
+3. Klik tombol **Authorize** 🔒 di pojok kanan atas, paste token (tanpa perlu nulis `Bearer `, Swagger yang nambahin otomatis)
+4. Endpoint yang butuh login (ditandai ikon gembok) sekarang bisa langsung dites dari UI
+
+### Generate ulang dokumentasi setelah ubah anotasi
+
+Kalau ada perubahan pada anotasi `#[OA\...]` di controller, dokumentasi perlu di-generate ulang:
+
+```bash
+# Native
+php artisan l5-swagger:generate
+
+# Via Docker
+docker exec -it payment_backend php artisan l5-swagger:generate
+```
+
+### Cakupan dokumentasi saat ini
+
+| Tag | Endpoint terdokumentasi |
+|---|---|
+| Auth | `POST /register`, `POST /login` |
+| Products | `GET /products`, `GET /products/{id}`, `POST /products` 🔒Admin, `PUT /products/{id}` 🔒Admin, `DELETE /products/{id}` 🔒Admin |
+| Orders | `POST /orders` |
+| Payment | `POST /payment/{orderId}`, `POST /payment/notification`, `GET /payment/{orderId}/status` |
+
+---
+
 ## 📁 Struktur Folder
 
 ```
@@ -484,21 +561,41 @@ Alur pengujian yang disarankan:
 5. Simulasikan pembayaran, pastikan webhook diterima dan status order berubah jadi `paid`
 6. **Kirim ulang notifikasi webhook yang sama** → verifikasi respons idempotent (`"Notification already processed"`, status tidak berubah)
 
-### Rencana Automated Testing (belum diimplementasikan)
-- Feature test: alur checkout end-to-end
-- Unit test: perhitungan `subtotal`/`total_amount`
-- Test khusus: signature verification menolak payload dengan signature invalid
+### Automated Testing (PHPUnit)
+
+Sudah diimplementasikan **38 test** (Unit + Feature), pakai SQLite in-memory biar gak menyentuh database asli.
+
+| Suite | File | Jumlah Test | Cakupan |
+|---|---|---|---|
+| Unit | `MidtransSignatureVerifierTest.php` | 7 | Verifikasi HMAC signature: valid, dipalsukan, replay antar order, gross amount dimodifikasi, server key salah, field hilang, payload kosong |
+| Feature | `Payment/PaymentTest.php` | 12 | Create payment, cek status, webhook notification (termasuk penolakan signature invalid & idempotency) |
+| Feature | `Product/ProductTest.php` | 17 | Semua endpoint produk — publik (list, detail) dan admin-only (create, update, delete), termasuk verifikasi role `customer` ditolak `403` |
+
+**Menjalankan test:**
+```bash
+# Native
+php artisan test
+
+# Via Docker (wajib override DB_CONNECTION/DB_DATABASE, lihat bagian Docker & Port di atas)
+docker exec -e DB_CONNECTION=sqlite -e DB_DATABASE=":memory:" -it payment_backend php artisan test
+```
+
+> **Catatan:** 1 test (`list produk bisa difilter by search`) otomatis di-skip kalau dijalankan dengan SQLite, karena fitur search di `ProductController` memakai operator `ILIKE` yang spesifik PostgreSQL. Test ini hanya jalan penuh kalau `DB_CONNECTION` diarahkan ke `pgsql`.
+
+### Belum Diimplementasikan
+- CI/CD pipeline yang otomatis menjalankan test di atas
+- Unit test terpisah untuk perhitungan `subtotal`/`total_amount` di luar konteks HTTP request
 
 ---
 
 ## 🗺 Roadmap / Pengembangan Selanjutnya
 
-- [ ] Automated test suite (PHPUnit/Pest)
+- [x] Automated test suite (PHPUnit) — 38 test, lihat bagian [Testing](#-testing)
+- [x] API documentation interaktif (Swagger/OpenAPI) — lihat bagian [Dokumentasi API Interaktif](#-dokumentasi-api-interaktif-swagger)
 - [ ] CI/CD pipeline (GitHub Actions)
 - [ ] Refund flow via Midtrans
 - [ ] Email notification transaksional (SMTP)
 - [ ] Custom rate limiter berbasis email (bukan hanya IP) untuk endpoint login
-- [ ] API documentation interaktif (Swagger/OpenAPI)
 
 ---
 

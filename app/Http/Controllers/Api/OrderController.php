@@ -9,6 +9,7 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use OpenApi\Attributes as OA;
 
 class OrderController extends Controller
 {
@@ -60,6 +61,31 @@ class OrderController extends Controller
     /**
      * Create new order
      */
+    #[OA\Post(
+        path: "/orders",
+        tags: ["Orders"],
+        security: [["sanctum" => []]],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ["items"],
+                properties: [
+                    new OA\Property(
+                        property: "items",
+                        type: "array",
+                        items: new OA\Items(
+                            properties: [
+                                new OA\Property(property: "product_id", type: "string", example: "5d297491-d6a8-4911-9690-0c335d9b923b"),
+                                new OA\Property(property: "quantity", type: "integer", example: 1),
+                            ]
+                        )
+                    ),
+                    new OA\Property(property: "notes", type: "string", example: "test order"),
+                ]
+            )
+        ),
+        responses: [new OA\Response(response: 201, description: "Order created")]
+    )]
     public function store(OrderRequest $request)
     {
         DB::beginTransaction();

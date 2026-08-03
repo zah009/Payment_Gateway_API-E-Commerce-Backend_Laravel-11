@@ -8,12 +8,31 @@ use App\Http\Requests\Auth\RegisterRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use OpenApi\Attributes as OA;
 
 class AuthController extends Controller
 {
     /**
      * Register new user
      */
+        #[OA\Post(
+        path: "/register",
+        tags: ["Auth"],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ["name", "email", "password", "password_confirmation"],
+                properties: [
+                    new OA\Property(property: "name", type: "string", example: "Test User"),
+                    new OA\Property(property: "email", type: "string", example: "test@test.com"),
+                    new OA\Property(property: "password", type: "string", example: "password123"),
+                    new OA\Property(property: "password_confirmation", type: "string", example: "password123"),
+                    new OA\Property(property: "phone", type: "string", example: "081234567890"),
+                ]
+            )
+        ),
+        responses: [new OA\Response(response: 201, description: "Registered")]
+    )]
     public function register(RegisterRequest $request)
     {
         try {
@@ -55,6 +74,21 @@ class AuthController extends Controller
     /**
      * Login user
      */
+        #[OA\Post(
+        path: "/login",
+        tags: ["Auth"],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ["email", "password"],
+                properties: [
+                    new OA\Property(property: "email", type: "string", example: "test@test.com"),
+                    new OA\Property(property: "password", type: "string", example: "password123"),
+                ]
+            )
+        ),
+        responses: [new OA\Response(response: 200, description: "Login success, returns data.access_token")]
+    )]
     public function login(LoginRequest $request)
     {
         $user = User::where('email', $request->email)->first();

@@ -9,12 +9,26 @@ use App\Models\PaymentLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use OpenApi\Attributes as OA;
 
 class PaymentController extends Controller
 {
     /**
      * Create payment & get Midtrans Snap Token
      */
+    #[OA\Post(
+        path: "/payment/{orderId}",
+        tags: ["Payment"],
+        security: [["sanctum" => []]],
+        parameters: [
+            new OA\Parameter(name: "orderId", in: "path", required: true, schema: new OA\Schema(type: "string"))
+        ],
+        responses: [
+            new OA\Response(response: 201, description: "Snap token created"),
+            new OA\Response(response: 404, description: "Order not found"),
+            new OA\Response(response: 400, description: "Payment already processed"),
+        ]
+    )]
     public function create(Request $request, string $orderId)
     {
         try {
@@ -214,6 +228,29 @@ class PaymentController extends Controller
  /**
      * Handle Midtrans notification webhook
      */
+    #[OA\Post(
+        path: "/payment/notification",
+        tags: ["Payment"],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: "order_id", type: "string"),
+                    new OA\Property(property: "status_code", type: "string"),
+                    new OA\Property(property: "gross_amount", type: "string"),
+                    new OA\Property(property: "transaction_status", type: "string"),
+                    new OA\Property(property: "fraud_status", type: "string"),
+                    new OA\Property(property: "payment_type", type: "string"),
+                    new OA\Property(property: "transaction_id", type: "string"),
+                    new OA\Property(property: "signature_key", type: "string"),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: "Notification processed"),
+            new OA\Response(response: 403, description: "Invalid signature"),
+        ]
+    )]
     public function notification(Request $request, MidtransSignatureVerifier $verifier)
     {
         DB::beginTransaction();
@@ -427,6 +464,15 @@ class PaymentController extends Controller
     /**
      * Check payment status
      */
+   #[OA\Get(
+        path: "/payment/{orderId}/status",
+        tags: ["Payment"],
+        security: [["sanctum" => []]],
+        parameters: [
+            new OA\Parameter(name: "orderId", in: "path", required: true, schema: new OA\Schema(type: "string"))
+        ],
+        responses: [new OA\Response(response: 200, description: "Payment status")]
+    )]
     public function status(Request $request, string $orderId)
     {
         try {
