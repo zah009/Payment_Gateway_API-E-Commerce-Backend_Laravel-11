@@ -10,20 +10,21 @@ use Illuminate\Support\Facades\Route;
 
 // Public routes
 Route::post('/register', [AuthController::class, 'register'])
-    ->middleware('throttle:5,1'); // max 5 percobaan per menit per IP
+    ->middleware('throttle:5,1');
 
 Route::post('/login', [AuthController::class, 'login'])
-    ->middleware('throttle:5,1'); // max 5 percobaan per menit per IP
+    ->middleware('throttle:5,1');
 
 Route::get('/products', [ProductController::class, 'index']);
 Route::get('/products/{id}', [ProductController::class, 'show']);
 
 Route::post('/payment/notification', [PaymentController::class, 'notification']);
 
-// Protected routes
-Route::middleware('auth:sanctum')->group(function () {
+// Protected routes (JWT)
+Route::middleware('auth:api')->group(function () {
     Route::get('/user', [AuthController::class, 'user']);
     Route::post('/logout', [AuthController::class, 'logout']);
+    Route::post('/refresh', [AuthController::class, 'refresh']);
 
     Route::get('/orders', [OrderController::class, 'index']);
     Route::post('/orders', [OrderController::class, 'store']);

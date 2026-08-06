@@ -9,6 +9,7 @@ use App\Models\OrderItem;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use OpenApi\Attributes as OA;
 
 class OrderController extends Controller
@@ -64,7 +65,7 @@ class OrderController extends Controller
     #[OA\Post(
         path: "/orders",
         tags: ["Orders"],
-        security: [["sanctum" => []]],
+        security: [["bearerAuth" => []]],
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
@@ -93,12 +94,20 @@ class OrderController extends Controller
         try {
             $totalAmount = 0;
             $orderItemsData = [];
+            $lockedProducts = [];
 
             // Validate stock & calculate total
             foreach ($request->items as $item) {
-                $product = Product::find($item['product_id']);
+                // lockForUpdate() mengunci baris produk ini sampai transaksi commit/rollback,
+                // supaya request checkout lain yang concurrent untuk produk yang sama harus
+                // antre - mencegah dua request sama-sama lolos pengecekan hasStock() untuk
+                // stok terakhir (race condition / oversold).
+                $product = Product::where('id', $item['product_id'])
+                    ->lockForUpdate()
+                    ->first();
 
                 if (!$product) {
+                    DB::rollBack();
                     return response()->json([
                         'success' => false,
                         'message' => "Product {$item['product_id']} not found",
@@ -106,6 +115,7 @@ class OrderController extends Controller
                 }
 
                 if (!$product->is_active) {
+                    DB::rollBack();
                     return response()->json([
                         'success' => false,
                         'message' => "Product {$product->name} is not available",
@@ -113,6 +123,7 @@ class OrderController extends Controller
                 }
 
                 if (!$product->hasStock($item['quantity'])) {
+                    DB::rollBack();
                     return response()->json([
                         'success' => false,
                         'message' => "Insufficient stock for {$product->name}. Available: {$product->stock}",
@@ -129,6 +140,8 @@ class OrderController extends Controller
                     'quantity' => $item['quantity'],
                     'subtotal' => $subtotal,
                 ];
+
+                $lockedProducts[$product->id] = $product;
             }
 
             // Create order
@@ -139,13 +152,23 @@ class OrderController extends Controller
                 'notes' => $request->notes,
             ]);
 
-            // Create order items
+            // Create order items & decrease stock (produk sudah dikunci di atas)
             foreach ($orderItemsData as $itemData) {
                 $order->items()->create($itemData);
 
-                // Decrease product stock
-                $product = Product::find($itemData['product_id']);
-                $product->decreaseStock($itemData['quantity']);
+                $product = $lockedProducts[$itemData['product_id']];
+
+                // decreaseStock() atomic (WHERE stock >= qty). Karena baris sudah
+                // di-lock sejak lockForUpdate() di atas, ini seharusnya selalu berhasil -
+                // tapi tetap dicek eksplisit sebagai pengaman kedua (defense in depth),
+                // alih-alih diam-diam mengizinkan stok jadi minus.
+                if (!$product->decreaseStock($itemData['quantity'])) {
+                    DB::rollBack();
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Insufficient stock for {$product->name}",
+                    ], 400);
+                }
             }
 
             DB::commit();
@@ -162,10 +185,21 @@ class OrderController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
 
+            Log::error('Order Creation Error', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to create order',
-                'error' => $e->getMessage(),
+                'error' => config('app.debug') ? [
+                    'message' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ] : null,
             ], 500);
         }
     }
@@ -182,6 +216,7 @@ class OrderController extends Controller
                 ->find($id);
 
             if (!$order) {
+                DB::rollBack();
                 return response()->json([
                     'success' => false,
                     'message' => 'Order not found',
@@ -189,15 +224,17 @@ class OrderController extends Controller
             }
 
             if (!$order->isPending()) {
+                DB::rollBack();
                 return response()->json([
                     'success' => false,
                     'message' => 'Only pending orders can be cancelled',
                 ], 400);
             }
 
-            // Return stock
+            // Return stock (lockForUpdate juga di sini supaya konsisten dengan store(),
+            // walau risiko race condition-nya jauh lebih kecil karena ini cuma increment)
             foreach ($order->items as $item) {
-                $product = Product::find($item->product_id);
+                $product = Product::where('id', $item->product_id)->lockForUpdate()->first();
                 if ($product) {
                     $product->increaseStock($item->quantity);
                 }
@@ -217,10 +254,22 @@ class OrderController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
 
+            Log::error('Order Cancel Error', [
+                'order_id' => $id,
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to cancel order',
-                'error' => $e->getMessage(),
+                'error' => config('app.debug') ? [
+                    'message' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ] : null,
             ], 500);
         }
     }
