@@ -4,7 +4,7 @@
 ![PHP](https://img.shields.io/badge/PHP-8.2%2B-777BB4?style=flat-square&logo=php&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-4169E1?style=flat-square&logo=postgresql&logoColor=white)
 ![Midtrans](https://img.shields.io/badge/Payment-Midtrans%20Snap-00AED6?style=flat-square)
-![Sanctum](https://img.shields.io/badge/Auth-Sanctum-FF2D20?style=flat-square&logo=laravel&logoColor=white)
+![JWT](https://img.shields.io/badge/Auth-JWT-000000?style=flat-square&logo=jsonwebtokens&logoColor=white)
 ![Status](https://img.shields.io/badge/Status-Portfolio%2FLearning-yellow?style=flat-square)
 ![License](https://img.shields.io/badge/License-Learning%20Purpose-lightgrey?style=flat-square)
 
@@ -41,7 +41,7 @@ Fokus utama project ini bukan cuma "connect ke Midtrans terus selesai" — ada t
 |---|---|
 | Framework | Laravel 11 (PHP 8.2+) |
 | Database | PostgreSQL |
-| Autentikasi | Laravel Sanctum (Bearer Token) |
+| Autentikasi | JWT (`php-open-source-saver/jwt-auth`), Bearer Token, stateless |
 | Payment Gateway | Midtrans Snap API (sandbox) |
 | API Documentation | L5-Swagger (OpenAPI 3.0) |
 | Format Response | JSON (REST API) |
@@ -52,8 +52,8 @@ Fokus utama project ini bukan cuma "connect ke Midtrans terus selesai" — ada t
 ## ✨ Fitur Utama
 
 ### Autentikasi & User Management
-- Register & login dengan token-based authentication (Sanctum)
-- Role-based access control (`customer` / `admin`)
+- Register & login dengan **JWT** (stateless, guard `api`), termasuk endpoint `refresh` untuk memperpanjang token tanpa login ulang
+- Role-based access control (`customer` / `admin`), role disematkan sebagai custom claim di token
 - Rate limiting pada endpoint auth untuk mencegah brute force
 
 ### Katalog Produk
@@ -66,6 +66,7 @@ Fokus utama project ini bukan cuma "connect ke Midtrans terus selesai" — ada t
 - Harga total dihitung ulang di server, **tidak pernah dipercaya dari input client**
 - Ownership check di setiap query — user hanya bisa akses order miliknya sendiri
 - Cancel order dengan rollback stok otomatis (database transaction)
+- **Stock decrement atomic & concurrency-safe**: `Product::decreaseStock()` memasukkan kondisi `stock >= quantity` langsung ke klausa `WHERE` SQL (bukan `decrement()` polos), dikombinasikan dengan `lockForUpdate()` di `OrderController::store()` — mencegah stok jadi minus (oversold) kalau ada dua checkout bersamaan untuk produk yang sama
 
 ### Payment Integration (Midtrans Snap)
 - Generate Snap Token untuk pembayaran
@@ -88,7 +89,10 @@ Ini bagian yang paling banyak berubah selama proses code review. Beberapa dari i
 | 5 | IDOR (user bisa akses order/payment milik user lain) | Setiap query order/payment di-scope dengan `where('user_id', $request->user()->id)` |
 | 6 | Data pribadi (nama, email, no. HP) tercatat mentah di log aplikasi | PII di-mask sebelum ditulis ke log (`jo***@gmail.com`, `0812****90`) |
 | 7 | Privilege escalation saat registrasi | Role di-hardcode `customer` di server, tidak menerima input role dari client |
-| 8 | CORS tidak terkonfigurasi (request dari frontend domain lain diblokir browser) | `config/cors.php` dengan origin yang eksplisit via environment variable, bukan wildcard `*` |
+| 8 | CORS tidak terkonfigurasi (request dari frontend domain lain diblokir browser) | `config/cors.php` ditambahkan agar endpoint `api/*` bisa diakses cross-origin |
+| 9 | Detail exception (query, path file, stack trace) bocor ke response client saat error 500 | Detail error hanya ditampilkan kalau `APP_DEBUG=true`; di production, client cuma dapat pesan generik |
+
+> ⚠️ **Belum selesai — perlu ditindaklanjuti:** `config/cors.php` saat ini masih memakai `'allowed_origins' => ['*']` (wildcard), **bukan** origin eksplisit via environment variable seperti yang sempat direncanakan. Untuk endpoint publik (`/products`) wildcard relatif tidak masalah, tapi untuk endpoint yang butuh Bearer token, wildcard CORS + credential berpotensi disalahgunakan dari domain manapun. Ganti ke daftar origin eksplisit (idealnya dari `env('FRONTEND_URL')`) sebelum dipakai di luar localhost.
 
 ---
 
@@ -137,7 +141,7 @@ sequenceDiagram
 Client (Postman / Frontend App)
         │
         ▼
-   Routes (api.php) ──── Middleware (auth:sanctum, role, throttle)
+   Routes (api.php) ──── Middleware (auth:api [JWT], role, throttle)
         │
         ▼
    Controllers (AuthController, OrderController, PaymentController, ProductController)
@@ -166,7 +170,6 @@ erDiagram
     ORDERS ||--o| PAYMENTS : "dibayar via"
     ORDERS ||--o{ PAYMENT_LOGS : "dicatat di"
     PRODUCTS ||--o{ ORDER_ITEMS : "dipesan sebagai"
-    USERS ||--o{ PERSONAL_ACCESS_TOKENS : "punya token"
 
     USERS {
         bigint id PK
@@ -233,16 +236,9 @@ erDiagram
         text payload
         timestamps created_at_updated_at
     }
-
-    PERSONAL_ACCESS_TOKENS {
-        bigint id PK
-        string tokenable_type
-        bigint tokenable_id
-        string token UK
-        text abilities
-        timestamp expires_at
-    }
 ```
+
+> **Catatan:** autentikasi memakai JWT (stateless) — tidak ada tabel token di database. Migration `create_personal_access_tokens_table` masih ada di `database/migrations/` sebagai sisa dari implementasi Sanctum sebelumnya; tabelnya tidak lagi dipakai kode manapun dan aman dihapus lewat migration baru kalau mau membersihkan skema.
 
 **Catatan desain**:
 - `products.id`, `orders.id`, dan `payments.id` menggunakan **UUID**, bukan auto-increment — untuk menghindari enumeration attack (menebak ID order/produk lain secara berurutan).
@@ -281,8 +277,16 @@ Sprint ini murni **review & perbaikan**, bukan fitur baru — tahap yang sering 
 - ✅ Ditambahkan: PII masking pada logging
 - ✅ Ditambahkan: konfigurasi CORS yang eksplisit
 
+### Sprint 5 — Migrasi Auth ke JWT & Concurrency Hardening
+- Migrasi autentikasi dari Laravel Sanctum ke **JWT** (`php-open-source-saver/jwt-auth`) — guard `api`, token stateless, tambah endpoint `POST /refresh`
+- Perbaikan `Product::decreaseStock()` jadi atomic (kondisi stok masuk klausa `WHERE` SQL) dikombinasikan `lockForUpdate()` di `OrderController::store()`, untuk mencegah stok minus akibat checkout bersamaan
+- Error response di Payment/Product controller tidak lagi membocorkan detail exception ke client saat `APP_DEBUG=false`
+- Penambahan `config/cors.php` — **catatan:** saat ini masih wildcard, lihat [Security Highlights #8](#-security-highlights) untuk status sebenarnya
+- Test suite bertambah dari 38 → 52 test (menambahkan cakupan Order & Product stock)
+
 ### Backlog / Belum Dikerjakan
-- Automated testing (unit & feature test)
+- Ganti `config/cors.php` dari wildcard ke daftar origin eksplisit (lihat catatan di Security Highlights)
+- Bersihkan migration `personal_access_tokens` yang sudah tidak dipakai sejak pindah ke JWT
 - CI/CD pipeline
 - Refund handling via Midtrans
 - Notifikasi email transaksional (SMTP)
@@ -402,7 +406,8 @@ Base URL: `/api`
 | POST | `/register` | Publik | Registrasi user baru |
 | POST | `/login` | Publik | Login, mengembalikan Bearer token |
 | GET | `/user` | 🔒 Bearer | Data user yang sedang login |
-| POST | `/logout` | 🔒 Bearer | Revoke token aktif |
+| POST | `/logout` | 🔒 Bearer | Invalidate token JWT aktif |
+| POST | `/refresh` | 🔒 Bearer | Tukar token lama dengan token JWT baru (perpanjang sesi tanpa login ulang) |
 
 **Contoh Request — Login**
 ```http
@@ -428,11 +433,13 @@ Content-Type: application/json
       "phone": "081234567890",
       "role": "customer"
     },
-    "access_token": "1|xxxxxxxxxxxxxxxxxxxx",
-    "token_type": "Bearer"
+    "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.xxxxxxxx.xxxxxxxx",
+    "token_type": "Bearer",
+    "expires_in": 3600
   }
 }
 ```
+> `access_token` adalah JWT standar (`header.payload.signature`), bukan lagi format token Sanctum. `expires_in` dalam detik, mengikuti `JWT_TTL` di `.env` (default 60 menit).
 
 ### Produk
 
@@ -539,9 +546,9 @@ app/
     └── HasUuid.php
 
 config/
-├── cors.php                            ← CORS eksplisit, bukan wildcard
+├── cors.php                            ← ⚠️ masih wildcard '*', lihat Security Highlights #8
 ├── midtrans.php
-└── sanctum.php
+└── jwt.php                             ← Konfigurasi JWT (TTL, refresh TTL, algoritma)
 
 database/migrations/                    ← Lihat bagian ERD di atas
 routes/
@@ -563,13 +570,17 @@ Alur pengujian yang disarankan:
 
 ### Automated Testing (PHPUnit)
 
-Sudah diimplementasikan **38 test** (Unit + Feature), pakai SQLite in-memory biar gak menyentuh database asli.
+Sudah diimplementasikan **52 test** (Unit + Feature), pakai SQLite in-memory biar gak menyentuh database asli.
 
 | Suite | File | Jumlah Test | Cakupan |
 |---|---|---|---|
 | Unit | `MidtransSignatureVerifierTest.php` | 7 | Verifikasi HMAC signature: valid, dipalsukan, replay antar order, gross amount dimodifikasi, server key salah, field hilang, payload kosong |
+| Unit | `ProductStockTest.php` | 5 | `hasStock()`, `decreaseStock()` atomic (termasuk kasus stok tidak cukup), `increaseStock()` |
+| Feature | `Order/OrderTest.php` | 10 | Create order (ditolak tanpa login, sukses & stok berkurang, produk tidak aktif/tidak ditemukan, stok kurang), ownership check, cancel order (rollback stok) |
 | Feature | `Payment/PaymentTest.php` | 12 | Create payment, cek status, webhook notification (termasuk penolakan signature invalid & idempotency) |
 | Feature | `Product/ProductTest.php` | 17 | Semua endpoint produk — publik (list, detail) dan admin-only (create, update, delete), termasuk verifikasi role `customer` ditolak `403` |
+
+> Plus 1 test bawaan Laravel (`ExampleTest.php`) yang belum dihapus — tidak menguji apa pun yang spesifik ke aplikasi ini, aman dihapus kalau mau jumlah test murni mencerminkan cakupan aplikasi.
 
 **Menjalankan test:**
 ```bash
@@ -590,8 +601,12 @@ docker exec -e DB_CONNECTION=sqlite -e DB_DATABASE=":memory:" -it payment_backen
 
 ## 🗺 Roadmap / Pengembangan Selanjutnya
 
-- [x] Automated test suite (PHPUnit) — 38 test, lihat bagian [Testing](#-testing)
+- [x] Automated test suite (PHPUnit) — 52 test, lihat bagian [Testing](#-testing)
 - [x] API documentation interaktif (Swagger/OpenAPI) — lihat bagian [Dokumentasi API Interaktif](#-dokumentasi-api-interaktif-swagger)
+- [x] Migrasi autentikasi ke JWT (dari Sanctum)
+- [x] Atomic stock decrement + row locking untuk mencegah oversold pada checkout bersamaan
+- [ ] **CORS: ganti wildcard `*` jadi origin eksplisit** — lihat [Security Highlights #8](#-security-highlights)
+- [ ] Bersihkan migration `personal_access_tokens` yang sudah tidak terpakai
 - [ ] CI/CD pipeline (GitHub Actions)
 - [ ] Refund flow via Midtrans
 - [ ] Email notification transaksional (SMTP)
@@ -609,4 +624,4 @@ Project ini dibuat untuk keperluan pembelajaran dan portofolio. Bebas digunakan 
 
 **Said Hamzah**
 
-Dikembangkan sebagai bagian dari internship program, dengan fokus penguatan fundamental keamanan backend dalam sistem pembayaran.
+Dikembangkan sebagai bagian dari , dengan fokus pengembangan diri penguatan fundamental keamanan backend dalam sistem pembayaran.
