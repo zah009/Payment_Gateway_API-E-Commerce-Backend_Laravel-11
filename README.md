@@ -1,4 +1,4 @@
-# 🛒 Payment Gateway API — E-Commerce Backend
+#  Payment Gateway API — E-Commerce Backend
 
 ![Laravel](https://img.shields.io/badge/Laravel-11-FF2D20?style=flat-square&logo=laravel&logoColor=white)
 ![PHP](https://img.shields.io/badge/PHP-8.2%2B-777BB4?style=flat-square&logo=php&logoColor=white)
@@ -12,11 +12,11 @@ Backend RESTful API untuk sistem e-commerce dengan integrasi payment gateway Mid
 
 Fokus utama project ini bukan cuma "connect ke Midtrans terus selesai" — ada tiga hal yang sengaja jadi perhatian: harga transaksi dihitung ulang di server (bukan percaya input client begitu aja), webhook pembayaran diverifikasi dengan benar (ini bagian yang paling sering di-skip di tutorial), dan sistem tetap aman kalau Midtrans kirim notifikasi yang sama dua kali.
 
-> 📌 **Status project**: Portofolio / Internship Learning Project — dibangun untuk mendalami integrasi payment gateway dan praktik keamanan backend. Bukan untuk produksi dengan transaksi nyata.
+>  **Status project**: Portofolio / Internship Learning Project — dibangun untuk mendalami integrasi payment gateway dan praktik keamanan backend. Bukan untuk produksi dengan transaksi nyata.
 
 ---
 
-## 📋 Daftar Isi
+##  Daftar Isi
 
 - [Tech Stack](#-tech-stack)
 - [Fitur Utama](#-fitur-utama)
@@ -35,7 +35,7 @@ Fokus utama project ini bukan cuma "connect ke Midtrans terus selesai" — ada t
 
 ---
 
-## 🛠 Tech Stack
+##  Tech Stack
 
 | Kategori | Teknologi |
 |---|---|
@@ -49,7 +49,7 @@ Fokus utama project ini bukan cuma "connect ke Midtrans terus selesai" — ada t
 
 ---
 
-## ✨ Fitur Utama
+##  Fitur Utama
 
 ### Autentikasi & User Management
 - Register & login dengan **JWT** (stateless, guard `api`), termasuk endpoint `refresh` untuk memperpanjang token tanpa login ulang
@@ -76,7 +76,7 @@ Fokus utama project ini bukan cuma "connect ke Midtrans terus selesai" — ada t
 
 ---
 
-## 🔒 Security Highlights
+##  Security Highlights
 
 Ini bagian yang paling banyak berubah selama proses code review. Beberapa dari isu di bawah ini awalnya lolos begitu aja waktu development — ditemukan pas iseng-iseng audit ulang kode sendiri.
 
@@ -92,11 +92,11 @@ Ini bagian yang paling banyak berubah selama proses code review. Beberapa dari i
 | 8 | CORS tidak terkonfigurasi (request dari frontend domain lain diblokir browser) | `config/cors.php` ditambahkan agar endpoint `api/*` bisa diakses cross-origin |
 | 9 | Detail exception (query, path file, stack trace) bocor ke response client saat error 500 | Detail error hanya ditampilkan kalau `APP_DEBUG=true`; di production, client cuma dapat pesan generik |
 
-> ⚠️ **Belum selesai — perlu ditindaklanjuti:** `config/cors.php` saat ini masih memakai `'allowed_origins' => ['*']` (wildcard), **bukan** origin eksplisit via environment variable seperti yang sempat direncanakan. Untuk endpoint publik (`/products`) wildcard relatif tidak masalah, tapi untuk endpoint yang butuh Bearer token, wildcard CORS + credential berpotensi disalahgunakan dari domain manapun. Ganti ke daftar origin eksplisit (idealnya dari `env('FRONTEND_URL')`) sebelum dipakai di luar localhost.
+>  **Belum selesai — perlu ditindaklanjuti:** `config/cors.php` saat ini masih memakai `'allowed_origins' => ['*']` (wildcard), **bukan** origin eksplisit via environment variable seperti yang sempat direncanakan. Untuk endpoint publik (`/products`) wildcard relatif tidak masalah, tapi untuk endpoint yang butuh Bearer token, wildcard CORS + credential berpotensi disalahgunakan dari domain manapun. Ganti ke daftar origin eksplisit (idealnya dari `env('FRONTEND_URL')`) sebelum dipakai di luar localhost.
 
 ---
 
-## 🏗 Arsitektur & Alur Sistem
+##  Arsitektur & Alur Sistem
 
 ### Alur Pembayaran (Payment Flow)
 
@@ -161,7 +161,7 @@ Client (Postman / Frontend App)
 
 ---
 
-## 🗂 Entity Relationship Diagram (ERD)
+##  Entity Relationship Diagram (ERD)
 
 ```mermaid
 erDiagram
@@ -247,7 +247,7 @@ erDiagram
 
 ---
 
-## 🔄 Proses Pengembangan (Agile/SDLC)
+## Proses Pengembangan (Agile/SDLC)
 
 Project ini dikembangkan dengan pendekatan **iteratif berbasis Agile** dalam sprint mingguan, dengan fokus membangun fondasi dulu sebelum menambah kompleksitas fitur pembayaran.
 
@@ -270,12 +270,12 @@ Project ini dikembangkan dengan pendekatan **iteratif berbasis Agile** dalam spr
 
 ### Sprint 4 — Security Hardening (Code Review Pass)
 Sprint ini murni **review & perbaikan**, bukan fitur baru — tahap yang sering dilewatkan project pemula tapi krusial untuk sistem pembayaran:
-- ✅ Ditemukan & diperbaiki: webhook tanpa verifikasi signature (celah pemalsuan notifikasi pembayaran)
-- ✅ Ditemukan & diperbaiki: exception handling yang mereferensikan class tidak valid (potensi crash saat error dari Midtrans)
-- ✅ Ditambahkan: idempotency guard untuk mencegah notifikasi duplikat/replay diproses ulang
-- ✅ Ditambahkan: rate limiting pada endpoint autentikasi
-- ✅ Ditambahkan: PII masking pada logging
-- ✅ Ditambahkan: konfigurasi CORS yang eksplisit
+- Ditemukan & diperbaiki: webhook tanpa verifikasi signature (celah pemalsuan notifikasi pembayaran)
+- Ditemukan & diperbaiki: exception handling yang mereferensikan class tidak valid (potensi crash saat error dari Midtrans)
+- Ditambahkan: idempotency guard untuk mencegah notifikasi duplikat/replay diproses ulang
+- Ditambahkan: rate limiting pada endpoint autentikasi
+- Ditambahkan: PII masking pada logging
+- Ditambahkan: konfigurasi CORS yang eksplisit
 
 ### Sprint 5 — Migrasi Auth ke JWT & Concurrency Hardening
 - Migrasi autentikasi dari Laravel Sanctum ke **JWT** (`php-open-source-saver/jwt-auth`) — guard `api`, token stateless, tambah endpoint `POST /refresh`
@@ -295,7 +295,7 @@ Sprint ini murni **review & perbaikan**, bukan fitur baru — tahap yang sering 
 
 ---
 
-## ⚙️ Instalasi & Setup Lokal
+## Instalasi & Setup Lokal
 
 ### Prasyarat
 - PHP >= 8.2
@@ -351,7 +351,7 @@ MIDTRANS_IS_PRODUCTION=false
 FRONTEND_URL=http://localhost:3000
 ```
 
-> ⚠️ **Penting**: `.env` tidak pernah di-commit ke repository (sudah ada di `.gitignore`). Gunakan `.env.example` sebagai template, dan isi key Midtrans dengan kredensial sandbox milik Anda sendiri melalui [dashboard Midtrans](https://dashboard.sandbox.midtrans.com/).
+> **Penting**: `.env` tidak pernah di-commit ke repository (sudah ada di `.gitignore`). Gunakan `.env.example` sebagai template, dan isi key Midtrans dengan kredensial sandbox milik Anda sendiri melalui [dashboard Midtrans](https://dashboard.sandbox.midtrans.com/).
 
 ### Setup Webhook untuk Testing Lokal
 
@@ -365,7 +365,7 @@ Lalu daftarkan URL ngrok tersebut (`https://xxxx.ngrok.io/api/payment/notificati
 
 ---
 
-## 🐳 Menjalankan via Docker & Daftar Port
+## Menjalankan via Docker & Daftar Port
 
 Selain instalasi manual di atas, project ini juga bisa dijalankan via Docker Compose. Berikut daftar service beserta port yang di-publish ke host:
 
@@ -395,7 +395,7 @@ docker exec -e DB_CONNECTION=sqlite -e DB_DATABASE=":memory:" -it payment_backen
 
 ---
 
-## 📖 Dokumentasi API
+## Dokumentasi API
 
 Base URL: `/api`
 
@@ -405,9 +405,9 @@ Base URL: `/api`
 |---|---|---|---|
 | POST | `/register` | Publik | Registrasi user baru |
 | POST | `/login` | Publik | Login, mengembalikan Bearer token |
-| GET | `/user` | 🔒 Bearer | Data user yang sedang login |
-| POST | `/logout` | 🔒 Bearer | Invalidate token JWT aktif |
-| POST | `/refresh` | 🔒 Bearer | Tukar token lama dengan token JWT baru (perpanjang sesi tanpa login ulang) |
+| GET | `/user` | Bearer | Data user yang sedang login |
+| POST | `/logout` | Bearer | Invalidate token JWT aktif |
+| POST | `/refresh` | Bearer | Tukar token lama dengan token JWT baru (perpanjang sesi tanpa login ulang) |
 
 **Contoh Request — Login**
 ```http
@@ -447,33 +447,33 @@ Content-Type: application/json
 |---|---|---|---|
 | GET | `/products` | Publik | List produk (support `search`, `active`, `in_stock`, `per_page`) |
 | GET | `/products/{id}` | Publik | Detail satu produk |
-| POST | `/products` | 🔒 Admin | Buat produk baru |
-| PUT | `/products/{id}` | 🔒 Admin | Update produk |
-| DELETE | `/products/{id}` | 🔒 Admin | Hapus produk |
+| POST | `/products` | Admin | Buat produk baru |
+| PUT | `/products/{id}` | Admin | Update produk |
+| DELETE | `/products/{id}` | Admin | Hapus produk |
 
 ### Order
 
 | Method | Endpoint | Auth | Deskripsi |
 |---|---|---|---|
-| GET | `/orders` | 🔒 Bearer | List order milik user login |
-| POST | `/orders` | 🔒 Bearer | Buat order baru (checkout) |
-| GET | `/orders/{id}` | 🔒 Bearer | Detail order |
-| POST | `/orders/{id}/cancel` | 🔒 Bearer | Batalkan order (stok dikembalikan) |
+| GET | `/orders` | Bearer | List order milik user login |
+| POST | `/orders` | Bearer | Buat order baru (checkout) |
+| GET | `/orders/{id}` | Bearer | Detail order |
+| POST | `/orders/{id}/cancel` | Bearer | Batalkan order (stok dikembalikan) |
 
 ### Payment
 
 | Method | Endpoint | Auth | Deskripsi |
 |---|---|---|---|
-| POST | `/payment/{orderId}` | 🔒 Bearer | Generate Snap Token untuk pembayaran |
-| GET | `/payment/{orderId}/status` | 🔒 Bearer | Cek status pembayaran (manual, fallback) |
+| POST | `/payment/{orderId}` | Bearer | Generate Snap Token untuk pembayaran |
+| GET | `/payment/{orderId}/status` | Bearer | Cek status pembayaran (manual, fallback) |
 | POST | `/payment/notification` | Publik (Midtrans only) | Webhook — menerima notifikasi status dari Midtrans |
 
-> Semua endpoint `🔒 Bearer` membutuhkan header:
+> Semua endpoint bertanda **Bearer** membutuhkan header:
 > `Authorization: Bearer {access_token}`
 
 ---
 
-## 📚 Dokumentasi API Interaktif (Swagger)
+## Dokumentasi API Interaktif (Swagger)
 
 Selain dokumentasi manual di atas, seluruh endpoint juga terdokumentasi otomatis dalam format **OpenAPI 3.0** via [L5-Swagger](https://github.com/DarkaOnLine/L5-Swagger) (`darkaonline/l5-swagger`), yang membungkus [zircote/swagger-php](https://github.com/zircote/swagger-php) untuk parsing PHP Attributes (`#[OA\Get]`, `#[OA\Post]`, dst) menjadi spesifikasi OpenAPI, dan menampilkannya lewat [swagger-api/swagger-ui](https://github.com/swagger-api/swagger-ui).
 
@@ -491,7 +491,7 @@ http://localhost:8000/docs?api-docs.json
 
 1. Buka `/api/documentation`
 2. Login dulu lewat endpoint `POST /login` (bisa langsung dari Swagger UI via **Try it out**), copy `access_token` dari response
-3. Klik tombol **Authorize** 🔒 di pojok kanan atas, paste token (tanpa perlu nulis `Bearer `, Swagger yang nambahin otomatis)
+3. Klik tombol **Authorize** di pojok kanan atas, paste token (tanpa perlu nulis `Bearer `, Swagger yang nambahin otomatis)
 4. Endpoint yang butuh login (ditandai ikon gembok) sekarang bisa langsung dites dari UI
 
 ### Generate ulang dokumentasi setelah ubah anotasi
@@ -511,13 +511,13 @@ docker exec -it payment_backend php artisan l5-swagger:generate
 | Tag | Endpoint terdokumentasi |
 |---|---|
 | Auth | `POST /register`, `POST /login` |
-| Products | `GET /products`, `GET /products/{id}`, `POST /products` 🔒Admin, `PUT /products/{id}` 🔒Admin, `DELETE /products/{id}` 🔒Admin |
+| Products | `GET /products`, `GET /products/{id}`, `POST /products` (Admin), `PUT /products/{id}` (Admin), `DELETE /products/{id}` (Admin) |
 | Orders | `POST /orders` |
 | Payment | `POST /payment/{orderId}`, `POST /payment/notification`, `GET /payment/{orderId}/status` |
 
 ---
 
-## 📁 Struktur Folder
+## Struktur Folder
 
 ```
 app/
@@ -546,7 +546,7 @@ app/
     └── HasUuid.php
 
 config/
-├── cors.php                            ← ⚠️ masih wildcard '*', lihat Security Highlights #8
+├── cors.php                            ← masih wildcard '*', lihat Security Highlights #8
 ├── midtrans.php
 └── jwt.php                             ← Konfigurasi JWT (TTL, refresh TTL, algoritma)
 
@@ -557,7 +557,7 @@ routes/
 
 ---
 
-## 🧪 Testing
+## Testing
 
 ### Testing Manual via Postman/curl
 Alur pengujian yang disarankan:
@@ -599,7 +599,7 @@ docker exec -e DB_CONNECTION=sqlite -e DB_DATABASE=":memory:" -it payment_backen
 
 ---
 
-## 🗺 Roadmap / Pengembangan Selanjutnya
+## Roadmap / Pengembangan Selanjutnya
 
 - [x] Automated test suite (PHPUnit) — 52 test, lihat bagian [Testing](#-testing)
 - [x] API documentation interaktif (Swagger/OpenAPI) — lihat bagian [Dokumentasi API Interaktif](#-dokumentasi-api-interaktif-swagger)
@@ -614,14 +614,14 @@ docker exec -e DB_CONNECTION=sqlite -e DB_DATABASE=":memory:" -it payment_backen
 
 ---
 
-## 📄 Lisensi
+## Lisensi
 
 Project ini dibuat untuk keperluan pembelajaran dan portofolio. Bebas digunakan sebagai referensi belajar.
 
 ---
 
-## 👤 Author
+## Author
 
 **Said Hamzah**
 
-Dikembangkan sebagai bagian dari , dengan fokus pengembangan diri penguatan fundamental keamanan backend dalam sistem pembayaran.
+Dikembangkan sebagai bagian dari program pembelajaran mandiri, dengan fokus penguatan fundamental keamanan backend dalam sistem pembayaran.
