@@ -68,11 +68,34 @@ class Product extends Model
     }
 
     /**
-     * Decrease stock
+     * Decrease stock secara atomic.
+     *
+     * Sengaja TIDAK pakai $this->decrement() polos, karena decrement() akan selalu
+     * mengeksekusi UPDATE tanpa syarat sisa stok — di bawah request concurrent,
+     * itu bisa membuat stock jadi minus (oversold).
+     *
+     * Di sini kondisi `stock >= quantity` dimasukkan ke klausa WHERE, jadi
+     * pengecekan dan pengurangan terjadi dalam satu statement SQL yang atomic
+     * di level database. Kalau baris yang ter-affect = 0, artinya stok sudah
+     * keburu habis diambil request lain sebelum request ini sampai ke DB.
+     *
+     * Tetap dipanggil di dalam DB::transaction() + lockForUpdate() di caller
+     * supaya pesan error "insufficient stock" akurat dan tidak ada TOCTOU
+     * antara pengecekan hasStock() dan keputusan bikin order.
+     *
+     * @return bool  true kalau stok berhasil dikurangi, false kalau stok tidak cukup.
      */
-    public function decreaseStock(int $quantity): void
+    public function decreaseStock(int $quantity): bool
     {
-        $this->decrement('stock', $quantity);
+        $affected = static::where('id', $this->id)
+            ->where('stock', '>=', $quantity)
+            ->decrement('stock', $quantity);
+
+        if ($affected > 0) {
+            $this->stock -= $quantity;
+        }
+
+        return $affected > 0;
     }
 
     /**
