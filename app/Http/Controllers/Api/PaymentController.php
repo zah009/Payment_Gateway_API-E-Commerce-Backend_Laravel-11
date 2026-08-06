@@ -19,7 +19,7 @@ class PaymentController extends Controller
     #[OA\Post(
         path: "/payment/{orderId}",
         tags: ["Payment"],
-        security: [["sanctum" => []]],
+        security: [["bearerAuth" => []]],
         parameters: [
             new OA\Parameter(name: "orderId", in: "path", required: true, schema: new OA\Schema(type: "string"))
         ],
@@ -218,9 +218,15 @@ class PaymentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create payment: ' . $e->getMessage(),
-                'error' => $e->getMessage(),
-                'error_code' => $e->getCode(),
+                'message' => 'Failed to create payment',
+                // Detail exception hanya ditampilkan saat APP_DEBUG=true (local/staging),
+                // supaya tidak membocorkan struktur query/path/pesan vendor ke client di production.
+                'error' => config('app.debug') ? [
+                    'message' => $e->getMessage(),
+                    'code' => $e->getCode(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ] : null,
             ], 500);
         }
     }
@@ -467,7 +473,7 @@ class PaymentController extends Controller
    #[OA\Get(
         path: "/payment/{orderId}/status",
         tags: ["Payment"],
-        security: [["sanctum" => []]],
+        security: [["bearerAuth" => []]],
         parameters: [
             new OA\Parameter(name: "orderId", in: "path", required: true, schema: new OA\Schema(type: "string"))
         ],
@@ -575,7 +581,11 @@ class PaymentController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to check payment status',
-                'error' => $e->getMessage(),
+                'error' => config('app.debug') ? [
+                    'message' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ] : null,
             ], 500);
         }
     }

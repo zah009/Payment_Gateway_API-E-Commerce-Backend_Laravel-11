@@ -27,7 +27,7 @@ class PaymentTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $response = $this->actingAs($user, 'sanctum')
+        $response = $this->actingAs($user, 'api')
             ->postJson('/api/payment/00000000-0000-0000-0000-000000000000');
 
         $response->assertStatus(404);
@@ -40,7 +40,7 @@ class PaymentTest extends TestCase
         $userB = User::factory()->create();
         $orderMilikA = Order::factory()->for($userA)->create();
 
-        $response = $this->actingAs($userB, 'sanctum')
+        $response = $this->actingAs($userB, 'api')
             ->postJson("/api/payment/{$orderMilikA->id}");
 
         $response->assertStatus(404);
@@ -52,7 +52,7 @@ class PaymentTest extends TestCase
         $user = User::factory()->create();
         $order = Order::factory()->for($user)->paid()->create();
 
-        $response = $this->actingAs($user, 'sanctum')
+        $response = $this->actingAs($user, 'api')
             ->postJson("/api/payment/{$order->id}");
 
         $response->assertStatus(400)
@@ -68,7 +68,7 @@ class PaymentTest extends TestCase
             'snap_token' => 'existing-snap-token-abc123',
         ]);
 
-        $response = $this->actingAs($user, 'sanctum')
+        $response = $this->actingAs($user, 'api')
             ->postJson("/api/payment/{$order->id}");
 
         $response->assertStatus(200)
@@ -97,7 +97,7 @@ class PaymentTest extends TestCase
         $orderMilikA = Order::factory()->for($userA)->create();
         Payment::factory()->for($orderMilikA)->create();
 
-        $response = $this->actingAs($userB, 'sanctum')
+        $response = $this->actingAs($userB, 'api')
             ->getJson("/api/payment/{$orderMilikA->id}/status");
 
         $response->assertStatus(404);
@@ -109,7 +109,7 @@ class PaymentTest extends TestCase
         $user = User::factory()->create();
         $order = Order::factory()->for($user)->create();
 
-        $response = $this->actingAs($user, 'sanctum')
+        $response = $this->actingAs($user, 'api')
             ->getJson("/api/payment/{$order->id}/status");
 
         $response->assertStatus(404)
@@ -126,7 +126,7 @@ class PaymentTest extends TestCase
             'payment_status' => 'pending',
         ]);
 
-        $response = $this->actingAs($user, 'sanctum')
+        $response = $this->actingAs($user, 'api')
             ->getJson("/api/payment/{$order->id}/status");
 
         $response->assertStatus(200)

@@ -146,7 +146,7 @@ class ProductController extends Controller
         tags: ["Products"],
         summary: "Create new product (Admin only)",
         description: "Requires Bearer token from an account with role = admin. Customers will get 403 Forbidden.",
-        security: [["sanctum" => []]],
+        security: [["bearerAuth" => []]],
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
@@ -207,7 +207,7 @@ class ProductController extends Controller
         tags: ["Products"],
         summary: "Update product (Admin only)",
         description: "Requires Bearer token from an account with role = admin. Customers will get 403 Forbidden.",
-        security: [["sanctum" => []]],
+        security: [["bearerAuth" => []]],
         parameters: [
             new OA\Parameter(
                 name: "id",
@@ -287,7 +287,7 @@ class ProductController extends Controller
         tags: ["Products"],
         summary: "Delete product (Admin only)",
         description: "Requires Bearer token from an account with role = admin. Customers will get 403 Forbidden.",
-        security: [["sanctum" => []]],
+        security: [["bearerAuth" => []]],
         parameters: [
             new OA\Parameter(
                 name: "id",

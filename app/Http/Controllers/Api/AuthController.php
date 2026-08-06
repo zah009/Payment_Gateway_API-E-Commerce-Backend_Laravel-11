@@ -9,13 +9,14 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use OpenApi\Attributes as OA;
+use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 
 class AuthController extends Controller
 {
     /**
      * Register new user
      */
-        #[OA\Post(
+    #[OA\Post(
         path: "/register",
         tags: ["Auth"],
         requestBody: new OA\RequestBody(
@@ -44,29 +45,30 @@ class AuthController extends Controller
                 'role' => 'customer', // Default role
             ]);
 
-            $token = $user->createToken('auth_token')->plainTextToken;
+            $token = JWTAuth::fromUser($user);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Registration successful',
-                'data' => [
-                    'user' => [
-                        'id' => $user->id,
-                        'name' => $user->name,
-                        'email' => $user->email,
-                        'phone' => $user->phone,
-                        'role' => $user->role,
-                    ],
-                    'access_token' => $token,
-                    'token_type' => 'Bearer',
-                ],
+                'data' => $this->respondWithToken($token, $user),
             ], 201);
 
         } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Registration Error', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Registration failed',
-                'error' => $e->getMessage(),
+                'error' => config('app.debug') ? [
+                    'message' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ] : null,
             ], 500);
         }
     }
@@ -74,7 +76,7 @@ class AuthController extends Controller
     /**
      * Login user
      */
-        #[OA\Post(
+    #[OA\Post(
         path: "/login",
         tags: ["Auth"],
         requestBody: new OA\RequestBody(
@@ -91,34 +93,21 @@ class AuthController extends Controller
     )]
     public function login(LoginRequest $request)
     {
-        $user = User::where('email', $request->email)->first();
+        $credentials = $request->only('email', 'password');
 
-        if (!$user || !Hash::check($request->password, $user->password)) {
+        if (!$token = auth('api')->attempt($credentials)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid credentials',
             ], 401);
         }
 
-        // Revoke all previous tokens (optional, untuk security)
-        // $user->tokens()->delete();
-
-        $token = $user->createToken('auth_token')->plainTextToken;
+        $user = auth('api')->user();
 
         return response()->json([
             'success' => true,
             'message' => 'Login successful',
-            'data' => [
-                'user' => [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'phone' => $user->phone,
-                    'role' => $user->role,
-                ],
-                'access_token' => $token,
-                'token_type' => 'Bearer',
-            ],
+            'data' => $this->respondWithToken($token, $user),
         ]);
     }
 
@@ -127,31 +116,72 @@ class AuthController extends Controller
      */
     public function user(Request $request)
     {
+        $user = auth('api')->user();
+
         return response()->json([
             'success' => true,
             'data' => [
                 'user' => [
-                    'id' => $request->user()->id,
-                    'name' => $request->user()->name,
-                    'email' => $request->user()->email,
-                    'phone' => $request->user()->phone,
-                    'role' => $request->user()->role,
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'phone' => $user->phone,
+                    'role' => $user->role,
                 ],
             ],
         ]);
     }
 
     /**
-     * Logout user
+     * Logout user (invalidate current token)
      */
     public function logout(Request $request)
     {
-        // Revoke current token
-        $request->user()->currentAccessToken()->delete();
+        auth('api')->logout();
 
         return response()->json([
             'success' => true,
             'message' => 'Logout successful',
         ]);
+    }
+
+    /**
+     * Refresh JWT token
+     */
+    public function refresh(Request $request)
+    {
+        try {
+            $newToken = auth('api')->refresh();
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Token could not be refreshed, please login again',
+            ], 401);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Token refreshed',
+            'data' => $this->respondWithToken($newToken, auth('api')->user()),
+        ]);
+    }
+
+    /**
+     * Format standar response token
+     */
+    protected function respondWithToken(string $token, User $user): array
+    {
+        return [
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'role' => $user->role,
+            ],
+            'access_token' => $token,
+            'token_type' => 'Bearer',
+            'expires_in' => auth('api')->factory()->getTTL() * 60, // detik
+        ];
     }
 }

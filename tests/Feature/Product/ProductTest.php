@@ -109,7 +109,7 @@ class ProductTest extends TestCase
     {
         $customer = User::factory()->customer()->create();
 
-        $response = $this->actingAs($customer, 'sanctum')
+        $response = $this->actingAs($customer, 'api')
             ->postJson('/api/products', [
                 'name' => 'Produk Baru',
                 'price' => 100000,
@@ -130,7 +130,7 @@ class ProductTest extends TestCase
     {
         $admin = User::factory()->admin()->create();
 
-        $response = $this->actingAs($admin, 'sanctum')
+        $response = $this->actingAs($admin, 'api')
             ->postJson('/api/products', [
                 'name' => 'Wireless Mouse',
                 'description' => 'Mouse wireless ergonomis',
@@ -154,7 +154,7 @@ class ProductTest extends TestCase
     {
         $admin = User::factory()->admin()->create();
 
-        $response = $this->actingAs($admin, 'sanctum')
+        $response = $this->actingAs($admin, 'api')
             ->postJson('/api/products', [
                 'description' => 'Tanpa nama, harga, dan stok',
             ]);
@@ -187,7 +187,7 @@ class ProductTest extends TestCase
         $customer = User::factory()->customer()->create();
         $product = Product::factory()->create(['name' => 'Nama Asli']);
 
-        $response = $this->actingAs($customer, 'sanctum')
+        $response = $this->actingAs($customer, 'api')
             ->putJson("/api/products/{$product->id}", [
                 'name' => 'Diubah Customer',
                 'price' => 1,
@@ -212,7 +212,7 @@ class ProductTest extends TestCase
             'stock' => 10,
         ]);
 
-        $response = $this->actingAs($admin, 'sanctum')
+        $response = $this->actingAs($admin, 'api')
             ->putJson("/api/products/{$product->id}", [
                 'name' => 'Nama Baru',
                 'price' => 135000,
@@ -238,7 +238,7 @@ class ProductTest extends TestCase
     {
         $admin = User::factory()->admin()->create();
 
-        $response = $this->actingAs($admin, 'sanctum')
+        $response = $this->actingAs($admin, 'api')
             ->putJson('/api/products/00000000-0000-0000-0000-000000000000', [
                 'name' => 'Tidak Ada',
                 'price' => 1,
@@ -270,7 +270,7 @@ class ProductTest extends TestCase
         $customer = User::factory()->customer()->create();
         $product = Product::factory()->create();
 
-        $response = $this->actingAs($customer, 'sanctum')
+        $response = $this->actingAs($customer, 'api')
             ->deleteJson("/api/products/{$product->id}");
 
         $response->assertStatus(403);
@@ -284,7 +284,7 @@ class ProductTest extends TestCase
         $admin = User::factory()->admin()->create();
         $product = Product::factory()->create();
 
-        $response = $this->actingAs($admin, 'sanctum')
+        $response = $this->actingAs($admin, 'api')
             ->deleteJson("/api/products/{$product->id}");
 
         $response->assertStatus(200)
@@ -301,7 +301,7 @@ class ProductTest extends TestCase
     {
         $admin = User::factory()->admin()->create();
 
-        $response = $this->actingAs($admin, 'sanctum')
+        $response = $this->actingAs($admin, 'api')
             ->deleteJson('/api/products/00000000-0000-0000-0000-000000000000');
 
         $response->assertStatus(404);
